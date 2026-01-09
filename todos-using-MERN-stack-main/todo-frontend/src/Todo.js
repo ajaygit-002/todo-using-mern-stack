@@ -1,224 +1,186 @@
 import { useEffect, useState } from "react";
 
+const API_URL = "http://localhost:8000";
+
 export default function Todo() {
-    const [title, setTitle] = useState("");
-    const [description, setdescription] = useState("");
-    const [todos, setTodos] = useState([]);
-    const [error, setError] = useState("");
-    const [message, setMessage] = useState("");
-    const [editId, setEditId] = useState(-1);
+  const [todos, setTodos] = useState([]);
+  const [form, setForm] = useState({ title: "", description: "" });
+  const [editForm, setEditForm] = useState({ id: null, title: "", description: "" });
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-    // edit states
-    const [editTitle, setEditTitle] = useState("");
-    const [editDescription, setEditDescription] = useState("");
+  useEffect(() => {
+    fetchTodos();
+  }, []);
 
-    const apiUrl = "http://localhost:8000";
-
-    const handleSubmit = () => {
-        setError("");
-        // check inputs
-        if (title.trim() !== "" && description.trim() !== "") {
-            fetch(apiUrl + "/todos", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ title, description }),
-            })
-                .then((res) => {
-                    if (res.ok) {
-                        // add item to the list
-                        setTodos([...todos, { title, description }]);
-                        setTitle("");
-                        setdescription("");
-                        setMessage("Item added successfully");
-                        setTimeout(() => {
-                            setMessage("");
-                        }, 3000);
-                    } else {
-                        // set error message
-                        setError("Unable to create todo item");
-                    }
-                })
-                .catch(() => {
-                    setError("Unable to create todo item");
-                });
-        }
-    };
-
-    useEffect(() => {
-        getItems();
-    }, []);
-
-    const getItems = () => {
-        fetch(apiUrl + "/todos")
-            .then((res) => res.json())
-            .then((res) => {
-                setTodos(res);
-            });
-    };
-
-    const handleEdit = (item) => {
-        setEditId(item._id);
-        setEditTitle(item.title);
-        setEditDescription(item.description);
-    };
-
-    const handleUpdate = () => {
-        setError("");
-        // check inputs
-        if (editTitle.trim() !== "" && editDescription.trim() !== "") {
-            fetch(apiUrl + "/todos/" + editId, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ title: editTitle, description: editDescription }),
-            })
-                .then((res) => {
-                    if (res.ok) {
-                        // update item in the list
-                        const updatedTodos = todos.map((item) => {
-                            if (item._id === editId) {
-                                item.title = editTitle;
-                                item.description = editDescription;
-                            }
-                            return item;
-                        });
-                        setTodos(updatedTodos);
-                        setEditTitle("");
-                        setEditDescription("");
-                        setMessage("Item updated successfully");
-                        setTimeout(() => {
-                            setMessage("");
-                        }, 3000);
-
-                        setEditId(-1);
-                    } else {
-                        setError("Unable to update todo item");
-                    }
-                })
-                .catch(() => {
-                    setError("Unable to update todo item");
-                });
-        }
-    };
-
-    const handleEditCancel = () => {
-        setEditId(-1);
-    };
-
-    const handleDelete = (id) => {
-        if (window.confirm('Are you sure you want to delete this item?')) {
-            fetch(apiUrl + "/todos/" + id, {
-                method: "DELETE"
-            })
-            .then(() => {
-                const updatedTodos = todos.filter((item) => item._id !== id)
-                setTodos(updatedTodos);
-            })
-        }
+  // ================= FETCH TODOS =================
+  const fetchTodos = async () => {
+    try {
+      const res = await fetch(`${API_URL}/todos`);
+      const data = await res.json();
+      setTodos(data);
+    } catch {
+      setError("Failed to fetch todos");
     }
+  };
 
-    return (
-        <>
-            <div className="row p-3 bg-primary text-white">
-                <h1>TODO Project with MERN stack</h1>
-            </div>
+  // ================= ADD TODO =================
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.description.trim()) return;
 
-            <div className="row">
-                <h3>Add Item</h3>
-                {message && <p className="text-success">{message}</p>}
-                <div className="form-group d-flex gap-3">
+    try {
+      const res = await fetch(`${API_URL}/todos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) throw new Error();
+      const newTodo = await res.json();
+
+      setTodos((prev) => [...prev, newTodo]);
+      setForm({ title: "", description: "" });
+      showMessage("Item added successfully");
+    } catch {
+      setError("Unable to create todo item");
+    }
+  };
+
+  // ================= EDIT =================
+  const handleEdit = (todo) => {
+    setEditForm({ id: todo._id, title: todo.title, description: todo.description });
+  };
+
+  // ================= UPDATE =================
+  const handleUpdate = async () => {
+    const { id, title, description } = editForm;
+    if (!title.trim() || !description.trim()) return;
+
+    try {
+      const res = await fetch(`${API_URL}/todos/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      setTodos((prev) =>
+        prev.map((todo) =>
+          todo._id === id ? { ...todo, title, description } : todo
+        )
+      );
+
+      setEditForm({ id: null, title: "", description: "" });
+      showMessage("Item updated successfully");
+    } catch {
+      setError("Unable to update todo item");
+    }
+  };
+
+  // ================= DELETE =================
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this todo?")) return;
+
+    try {
+      await fetch(`${API_URL}/todos/${id}`, { method: "DELETE" });
+      setTodos((prev) => prev.filter((todo) => todo._id !== id));
+    } catch {
+      setError("Unable to delete todo");
+    }
+  };
+
+  const showMessage = (msg) => {
+    setMessage(msg);
+    setTimeout(() => setMessage(""), 3000);
+  };
+
+  return (
+    <>
+      <div className="row p-3 bg-primary text-white">
+        <h1>TODO Project (MERN Stack)</h1>
+      </div>
+
+      <div className="row mt-3">
+        <h3>Add Item</h3>
+        {message && <p className="text-success">{message}</p>}
+        {error && <p className="text-danger">{error}</p>}
+
+        <div className="d-flex gap-3">
+          <input
+            className="form-control"
+            placeholder="Title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
+          <input
+            className="form-control"
+            placeholder="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          <button className="btn btn-success" onClick={handleSubmit}>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div className="row mt-4">
+        <h3>Tasks</h3>
+        <ul className="list-group col-md-6">
+          {todos.map((todo) => (
+            <li key={todo._id} className="list-group-item d-flex justify-content-between">
+              {editForm.id === todo._id ? (
+                <>
+                  <div className="d-flex gap-2 w-100">
                     <input
-                        placeholder="Title"
-                        onChange={(e) => setTitle(e.target.value)}
-                        value={title}
-                        className="form-control"
-                        type="text"
+                      className="form-control"
+                      value={editForm.title}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, title: e.target.value })
+                      }
                     />
                     <input
-                        placeholder="Description"
-                        onChange={(e) => setdescription(e.target.value)}
-                        value={description}
-                        className="form-control"
-                        type="text"
+                      className="form-control"
+                      value={editForm.description}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, description: e.target.value })
+                      }
                     />
-                    <button className="btn btn-success" onClick={handleSubmit}>
-                        Submit
+                  </div>
+                  <button className="btn btn-success" onClick={handleUpdate}>
+                    Save
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => setEditForm({ id: null })}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <strong>{todo.title}</strong>
+                    <p className="mb-0">{todo.description}</p>
+                  </div>
+                  <div className="d-flex gap-2">
+                    <button className="btn btn-info" onClick={() => handleEdit(todo)}>
+                      Edit
                     </button>
-                </div>
-                {error && <p className="text-danger">{error}</p>}
-            </div>
-
-            <div className="row mt-3">
-                <h3>Tasks</h3>
-                <div className="col-md-6">
-                    <ul className="list-group">
-                    {todos.map((item) => (
-                        <li
-                            className="list-group-item bg-light d-flex justify-content-between align-items-center my-2"
-                            key={item._id}
-                        >
-                            <div className="d-flex flex-column">
-                                {editId === -1 || editId !== item._id ? (
-                                    <>
-                                        <span className="fw-bold">{item.title}</span>
-                                        <span>{item.description}</span>
-                                    </>
-                                ) : (
-                                    <div>
-                                        <div className="form-group d-flex gap-3">
-                                            <input
-                                                placeholder="Title"
-                                                onChange={(e) => setEditTitle(e.target.value)}
-                                                value={editTitle}
-                                                className="form-control"
-                                                type="text"
-                                            />
-                                            <input
-                                                placeholder="Description"
-                                                onChange={(e) => setEditDescription(e.target.value)}
-                                                value={editDescription}
-                                                className="form-control"
-                                                type="text"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="d-flex gap-2">
-                                {editId === -1 || editId !== item._id ? (
-                                    <button
-                                        className="btn btn-info"
-                                        onClick={() => handleEdit(item)}
-                                    >
-                                        Edit
-                                    </button>
-                                ) : (
-                                    <button className="btn btn-success" onClick={handleUpdate}>
-                                        Update
-                                    </button>
-                                )}
-
-                                {editId === -1 || editId !== item._id ? (
-                                    <button className="btn btn-danger" onClick={() =>handleDelete (item._id)}>Delete</button>
-                                ) : (
-                                    <button
-                                        className="btn btn-danger"
-                                        onClick={handleEditCancel}
-                                    >
-                                        Cancel
-                                    </button>
-                                )}
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-                </div>
-                
-            </div>
-        </>
-    );
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => handleDelete(todo._id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
 }
