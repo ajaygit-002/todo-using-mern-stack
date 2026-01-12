@@ -8,6 +8,7 @@ export default function Todo() {
   const [editForm, setEditForm] = useState({ id: null, title: "", description: "" });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchTodos();
@@ -25,7 +26,8 @@ export default function Todo() {
   };
 
   // ================= ADD TODO =================
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
     if (!form.title.trim() || !form.description.trim()) return;
 
     try {
@@ -82,12 +84,18 @@ export default function Todo() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this todo?")) return;
 
-    try {
-      await fetch(`${API_URL}/todos/${id}`, { method: "DELETE" });
-      setTodos((prev) => prev.filter((todo) => todo._id !== id));
-    } catch {
-      setError("Unable to delete todo");
-    }
+    // Play a quick slide-out animation before removing.
+    setDeletingId(id);
+    setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/todos/${id}`, { method: "DELETE" });
+        setTodos((prev) => prev.filter((todo) => todo._id !== id));
+      } catch {
+        setError("Unable to delete todo");
+      } finally {
+        setDeletingId(null);
+      }
+    }, 220);
   };
 
   const showMessage = (msg) => {
@@ -97,62 +105,73 @@ export default function Todo() {
 
   return (
     <>
-      <div className="row p-3 bg-primary text-white">
-        <h1>TODO Project (MERN Stack)</h1>
+      <div className="row g-3 p-4 header-gradient text-white fade-in align-items-center rounded-3">
+        <div className="col">
+          <h1 className="h3 mb-1">TODO Project (MERN Stack)</h1>
+          <p className="mb-0 opacity-75">Plan, add, edit, and complete tasks comfortably on any device.</p>
+        </div>
       </div>
 
       <div className="row mt-3">
-        <h3>Add Item</h3>
-        {message && <p className="text-success">{message}</p>}
-        {error && <p className="text-danger">{error}</p>}
-
-        <div className="d-flex gap-3">
-          <input
-            className="form-control"
-            placeholder="Title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-          <input
-            className="form-control"
-            placeholder="Description"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-          <button className="btn btn-success" onClick={handleSubmit}>
-            Add
-          </button>
+        <div className="col-12 col-md-8 col-lg-6 mx-auto">
+          <form className="card shadow-sm p-3 fade-in" onSubmit={handleSubmit}>
+            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+              <h3 className="mb-0">Add Item</h3>
+              <small className="text-muted">Fields are required</small>
+            </div>
+            <div className="input-group-responsive">
+              <input
+                className="form-control input-glow"
+                placeholder="Title"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+              <input
+                className="form-control input-glow"
+                placeholder="Description"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+              <button type="submit" className="btn btn-success hover-lift ripple-btn">
+                Add
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 
       <div className="row mt-4">
         <h3>Tasks</h3>
-        <ul className="list-group col-md-6">
-          {todos.map((todo) => (
-            <li key={todo._id} className="list-group-item d-flex justify-content-between">
+        <ul className="list-group col-12 col-md-8 col-lg-6 mx-auto">
+          {todos.map((todo, idx) => (
+            <li
+              key={todo._id}
+              className={`list-group-item d-flex justify-content-between todo-item animate-pop stagger-item ${deletingId === todo._id ? 'slide-out' : ''}`}
+              style={{ '--delay': `${idx * 60}ms` }}
+            >
               {editForm.id === todo._id ? (
                 <>
-                  <div className="d-flex gap-2 w-100">
+                  <div className="input-group-responsive expand-in">
                     <input
-                      className="form-control"
+                      className="form-control input-glow"
                       value={editForm.title}
                       onChange={(e) =>
                         setEditForm({ ...editForm, title: e.target.value })
                       }
                     />
                     <input
-                      className="form-control"
+                      className="form-control input-glow"
                       value={editForm.description}
                       onChange={(e) =>
                         setEditForm({ ...editForm, description: e.target.value })
                       }
                     />
                   </div>
-                  <button className="btn btn-success" onClick={handleUpdate}>
+                  <button className="btn btn-success hover-lift ripple-btn" onClick={handleUpdate}>
                     Save
                   </button>
                   <button
-                    className="btn btn-danger"
+                    className="btn btn-danger hover-lift ripple-btn"
                     onClick={() => setEditForm({ id: null })}
                   >
                     Cancel
@@ -164,12 +183,12 @@ export default function Todo() {
                     <strong>{todo.title}</strong>
                     <p className="mb-0">{todo.description}</p>
                   </div>
-                  <div className="d-flex gap-2">
-                    <button className="btn btn-info" onClick={() => handleEdit(todo)}>
+                  <div className="d-flex gap-2 todo-actions">
+                    <button className="btn btn-info hover-lift ripple-btn" onClick={() => handleEdit(todo)}>
                       Edit
                     </button>
                     <button
-                      className="btn btn-danger"
+                      className="btn btn-danger hover-lift ripple-btn"
                       onClick={() => handleDelete(todo._id)}
                     >
                       Delete
@@ -181,6 +200,18 @@ export default function Todo() {
           ))}
         </ul>
       </div>
+
+      {/* Toast notifications */}
+      {message && (
+        <div className="toast-message">
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className="toast-message toast-error">
+          {error}
+        </div>
+      )}
     </>
   );
 }
